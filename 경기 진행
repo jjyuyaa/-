@@ -38,9 +38,177 @@ class Team:
     def change_pitcher(self):
         if self.current_pitcher_index + 1 < len(self.pitchers):
             self.current_pitcher_index += 1
-            print(f"🔄 투수 교체! → {self.pitcher.name}")
+            print(f"🔄 투수 교체 → {self.pitcher.name}")
         else:
-            print("❌ 더 이상 교체할 투수가 없다!")
+            print("❌ 더 이상 교체할 투수가 없다")
+
+# =========================
+# 입력 유틸
+# =========================
+
+def input_stat(msg):
+    while True:
+        try:
+            v = int(input(msg))
+            if 1 <= v <= 10:
+                return v
+            print("1~10만 가능")
+        except:
+            print("숫자 입력")
+
+# =========================
+# 팀 생성
+# =========================
+
+def create_team():
+    print("\n=== 구단 생성 ===")
+    name = input("구단 이름: ")
+
+    batters = []
+    print("\n타자 9명 설정")
+    for i in range(9):
+        print(f"\n타자 {i+1}")
+        b_name = input("이름: ")
+        batters.append(
+            Batter(
+                b_name,
+                input_stat("컨택(1~10): "),
+                input_stat("파워(1~10): "),
+                input_stat("주력(1~10): ")
+            )
+        )
+
+    pitchers = []
+    count = int(input("\n투수 몇 명? (선발+불펜): "))
+    for i in range(count):
+        print(f"\n투수 {i+1}")
+        p_name = input("이름: ")
+        pitchers.append(
+            Pitcher(
+                p_name,
+                input_stat("제구(1~10): "),
+                input_stat("구위(1~10): "),
+                input_stat("체력(1~10): ")
+            )
+        )
+
+    return Team(name, batters, pitchers)
+
+def create_npc_team():
+    names = ["타이거즈", "베어스", "이글스", "위즈"]
+    batters = [
+        Batter(f"NPC타자{i+1}",
+               random.randint(4,7),
+               random.randint(4,7),
+               random.randint(4,7))
+        for i in range(9)
+    ]
+    pitchers = [
+        Pitcher("NPC선발", 6, 6, 7),
+        Pitcher("NPC불펜1", 5, 5, 5),
+        Pitcher("NPC불펜2", 4, 4, 4),
+    ]
+    return Team(random.choice(names), batters, pitchers)
+
+# =========================
+# 게임 로직
+# =========================
+
+def at_bat(batter, pitcher):
+    penalty = (pitcher.max_stamina - pitcher.stamina) * 3
+    chance = batter.contact * 10 - pitcher.control * 5 + penalty + random.randint(-10,10)
+    pitcher.stamina -= 1
+
+    if random.randint(1,100) <= chance:
+        p = random.randint(1,10)
+        if p <= batter.power:
+            return "HR"
+        elif p <= batter.power + 2:
+            return "2B"
+        else:
+            return "1B"
+    return "OUT"
+
+def steal_attempt(batter, pitcher):
+    chance = batter.speed * 10 - pitcher.control * 5
+    return random.randint(1,100) <= chance
+
+def advance_runners(bases, hit):
+    runs = 0
+    if hit == "HR":
+        runs = sum(bases) + 1
+        bases = [0,0,0]
+    elif hit == "2B":
+        runs += bases[2] + bases[1]
+        bases = [0,1,bases[0]]
+    elif hit == "1B":
+        runs += bases[2]
+        bases = [1,bases[0],bases[1]]
+    return bases, runs
+
+def play_half_inning(offense, defense):
+    outs = 0
+    bases = [0,0,0]
+    idx = 0
+
+    while outs < 3:
+        batter = offense.batters[idx % 9]
+        pitcher = defense.pitcher
+
+        print(f"\n투수: {pitcher.name} ({pitcher.stamina}/{pitcher.max_stamina})")
+        print(f"주자: 1루[{bases[0]}] 2루[{bases[1]}] 3루[{bases[2]}]")
+
+        if bases[0]:
+            cmd = input("지시: Enter 타격 / s 도루 : ")
+            if cmd == "s":
+                if steal_attempt(batter, pitcher):
+                    print("🏃 도루 성공")
+                    bases[0], bases[1] = 0, 1
+                else:
+                    print("❌ 도루 실패 아웃")
+                    outs += 1
+                    bases[0] = 0
+                    continue
+
+        result = at_bat(batter, pitcher)
+        print(f"{batter.name} → {result}")
+
+        if result == "OUT":
+            outs += 1
+        else:
+            bases, runs = advance_runners(bases, result)
+            offense.score += runs
+            if runs:
+                print(f"💰 {runs}점!")
+
+        if pitcher.stamina <= 2:
+            if input("⚠️ 투수 교체? (y/n): ") == "y":
+                defense.change_pitcher()
+
+        idx += 1
+
+def play_game(t1, t2):
+    print(f"\n⚾ {t1.name} vs {t2.name} 시작!")
+
+    for inn in range(1,10):
+        print(f"\n=== {inn}회 초 ===")
+        play_half_inning(t1, t2)
+        print(f"\n=== {inn}회 말 ===")
+        play_half_inning(t2, t1)
+
+    print("\n=== 경기 종료 ===")
+    print(f"{t1.name} {t1.score} : {t2.score} {t2.name}")
+
+# =========================
+# 실행
+# =========================
+
+print("⚾ 텍스트 야구 시뮬레이션")
+
+my_team = create_team()
+enemy = create_npc_team() if input("상대 랜덤? (y/n): ") == "y" else create_team()
+
+play_game(my_team, enemy)
 
 # =========================
 # 타석 로직
