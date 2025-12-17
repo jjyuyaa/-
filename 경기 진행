@@ -1,0 +1,199 @@
+import random
+
+# =========================
+# 선수 클래스
+# =========================
+
+class Batter:
+    def __init__(self, name, contact, power, speed):
+        self.name = name
+        self.contact = contact  # 1~10
+        self.power = power
+        self.speed = speed
+
+class Pitcher:
+    def __init__(self, name, control, stuff, stamina):
+        self.name = name
+        self.control = control  # 1~10
+        self.stuff = stuff
+        self.stamina = stamina
+        self.max_stamina = stamina
+
+# =========================
+# 팀 클래스
+# =========================
+
+class Team:
+    def __init__(self, name, batters, pitchers):
+        self.name = name
+        self.batters = batters
+        self.pitchers = pitchers
+        self.score = 0
+        self.current_pitcher_index = 0
+
+    @property
+    def pitcher(self):
+        return self.pitchers[self.current_pitcher_index]
+
+    def change_pitcher(self):
+        if self.current_pitcher_index + 1 < len(self.pitchers):
+            self.current_pitcher_index += 1
+            print(f"🔄 투수 교체! → {self.pitcher.name}")
+        else:
+            print("❌ 더 이상 교체할 투수가 없다!")
+
+# =========================
+# 타석 로직
+# =========================
+
+def at_bat(batter, pitcher):
+    stamina_penalty = max(0, pitcher.max_stamina - pitcher.stamina)
+
+    hit_chance = (
+        batter.contact * 10
+        - pitcher.control * 5
+        + random.randint(-10, 10)
+        + stamina_penalty * 3
+    )
+
+    pitcher.stamina -= 1
+    roll = random.randint(1, 100)
+
+    if roll <= hit_chance:
+        power_roll = random.randint(1, 10)
+        if power_roll <= batter.power:
+            return "HR"
+        elif power_roll <= batter.power + 2:
+            return "2B"
+        else:
+            return "1B"
+    else:
+        return "OUT"
+
+# =========================
+# 도루 로직
+# =========================
+
+def steal_attempt(batter, pitcher):
+    chance = batter.speed * 10 - pitcher.control * 5
+    roll = random.randint(1, 100)
+    return roll <= chance
+
+# =========================
+# 주자 이동
+# =========================
+
+def advance_runners(bases, hit):
+    runs = 0
+
+    if hit == "HR":
+        runs = sum(bases) + 1
+        bases = [0, 0, 0]
+
+    elif hit == "2B":
+        runs += bases[2] + bases[1]
+        bases = [0, 1, bases[0]]
+
+    elif hit == "1B":
+        runs += bases[2]
+        bases = [1, bases[0], bases[1]]
+
+    return bases, runs
+
+# =========================
+# 반 이닝
+# =========================
+
+def play_half_inning(offense, defense):
+    outs = 0
+    batter_index = 0
+    bases = [0, 0, 0]
+
+    while outs < 3:
+        pitcher = defense.pitcher
+        batter = offense.batters[batter_index % len(offense.batters)]
+
+        print(f"\n투수: {pitcher.name} (체력 {pitcher.stamina}/{pitcher.max_stamina})")
+        print(f"주자: 1루[{bases[0]}] 2루[{bases[1]}] 3루[{bases[2]}]")
+
+        # --- 감독 선택 ---
+        if bases[0] == 1:
+            cmd = input("지시: [Enter] 타격 / s 도루 : ")
+            if cmd == "s":
+                success = steal_attempt(batter, pitcher)
+                if success:
+                    print("🏃 도루 성공!")
+                    bases[0], bases[1] = 0, 1
+                else:
+                    print("❌ 도루 실패! 아웃")
+                    outs += 1
+                    bases[0] = 0
+                    continue
+
+        result = at_bat(batter, pitcher)
+        print(f"{batter.name} → {result}")
+
+        if result == "OUT":
+            outs += 1
+        else:
+            bases, runs = advance_runners(bases, result)
+            offense.score += runs
+            if runs:
+                print(f"💰 {runs}점 득점!")
+
+        if pitcher.stamina <= 2:
+            change = input("⚠️ 투수 체력 부족! 교체? (y/n): ")
+            if change == "y":
+                defense.change_pitcher()
+
+        batter_index += 1
+
+# =========================
+# 경기 진행
+# =========================
+
+def play_game(team1, team2):
+    print(f"\n⚾ {team1.name} vs {team2.name} 경기 시작!")
+
+    for inning in range(1, 10):
+        print(f"\n=== {inning}회 초 ({team1.name}) ===")
+        play_half_inning(team1, team2)
+
+        print(f"\n=== {inning}회 말 ({team2.name}) ===")
+        play_half_inning(team2, team1)
+
+    print("\n=== 경기 종료 ===")
+    print(f"{team1.name} {team1.score} : {team2.score} {team2.name}")
+
+# =========================
+# 팀 설정
+# =========================
+
+my_team = Team(
+    "내 구단",
+    batters=[
+        Batter("타자1", 7, 5, 7),
+        Batter("타자2", 6, 6, 5),
+        Batter("타자3", 8, 7, 4),
+    ],
+    pitchers=[
+        Pitcher("선발", 7, 6, 8),
+        Pitcher("불펜1", 6, 6, 5),
+        Pitcher("불펜2", 5, 5, 4),
+    ]
+)
+
+npc_team = Team(
+    "NPC 구단",
+    batters=[
+        Batter("NPC1", 5, 5, 5),
+        Batter("NPC2", 6, 4, 6),
+        Batter("NPC3", 7, 6, 4),
+    ],
+    pitchers=[
+        Pitcher("NPC선발", 6, 5, 7),
+        Pitcher("NPC불펜", 5, 5, 5),
+    ]
+)
+
+play_game(my_team, npc_team)
